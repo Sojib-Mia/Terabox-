@@ -1,7 +1,7 @@
 import os
 import re
 import requests
-from telegram import Bot, Update
+from telegram import Update
 from telegram.ext import (
     Application,
     MessageHandler,
@@ -10,16 +10,17 @@ from telegram.ext import (
     filters
 )
 from dotenv import load_dotenv
+import pytz  # Required for timezone
 
-# .env ফাইল থেকে টোকেন লোড করুন
+# Load environment variables
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
-# ডাউনলোড ফোল্ডার তৈরি করুন
+# Create downloads folder
 if not os.path.exists("downloads"):
     os.makedirs("downloads")
 
-# টেরাবক্সের জন্য হেডার
+# Terabox headers
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     "Referer": "https://www.terabox.com/"
@@ -55,30 +56,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not video_file:
             raise Exception("Download Failed")
         
-        # ভিডিও সেন্ড করুন
         with open(video_file, 'rb') as video:
-            await update.message.reply_video(video, read_timeout=100, write_timeout=100)
+            await update.message.reply_video(
+                video, 
+                read_timeout=100, 
+                write_timeout=100,
+                caption="✅ Downloaded by @YourBotName"
+            )
         
-        # ফাইল ডিলিট করুন
         os.remove(video_file)
-        await update.message.reply_text("✅ Video Sent Successfully!")
     except Exception as e:
         await update.message.reply_text("😢 Failed to Download. Check Link or Try Later.")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello! Send me a TeraBox link to download.")
+    await update.message.reply_text("""🌟 Welcome to Terabox Downloader Bot!
+Send any Terabox video link to download.""")
 
 def main():
-    # বট অ্যাপ্লিকেশন তৈরি করুন
-    application = Application.builder().token(TOKEN).build()
+    # Create application with timezone
+    application = Application.builder() \
+        .token(TOKEN) \
+        .timezone(pytz.timezone("Asia/Dhaka")) \  # Set your timezone
+        .build()
     
-    # মেসেজ হ্যান্ডলার
+    # Add handlers
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # স্টার্ট কমান্ড
-    application.add_handler(CommandHandler("start", start))
-    
-    # বট চালু করুন
+    # Start bot
     application.run_polling()
 
 if __name__ == "__main__":
