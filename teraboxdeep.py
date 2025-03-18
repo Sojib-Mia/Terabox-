@@ -20,17 +20,15 @@ TOKEN = os.getenv("BOT_TOKEN")
 if not os.path.exists("downloads"):
     os.makedirs("downloads")
 
-# টেরাবক্স এবং টেরাফাইলশেয়ারের জন্য হেডার
+# টেরাবক্সের জন্য হেডার (ব্রাউজার সিমুলেশন)
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     "Referer": "https://www.terabox.com/",
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive"
 }
 
 def get_redirected_url(url: str) -> str:
-    """লিংক রিডাইরেক্ট হলে প্রকৃত URL বের করে"""
+    """রিডাইরেক্ট লিংক রিজল্ভ করে"""
     try:
         response = requests.get(url, headers=HEADERS, allow_redirects=True, timeout=15)
         return response.url
@@ -41,18 +39,13 @@ def get_redirected_url(url: str) -> str:
 async def download_video(url: str) -> str:
     """ভিডিও ডাউনলোড করে ফাইলপাথে রিটার্ন করে"""
     try:
-        # রিডাইরেক্ট URL পেতে কল করুন
         direct_url = get_redirected_url(url)
-        print(f"Redirected URL: {direct_url}")  # ডিবাগিং
-        
         if not direct_url:
             return None
         
-        # ভিডিও ডাউনলোড
         response = requests.get(direct_url, headers=HEADERS, stream=True, timeout=30)
-        response.raise_for_status()  # HTTP এরর চেক
+        response.raise_for_status()
         
-        # ফাইল সেভ করুন
         filename = f"downloads/video_{len(os.listdir('downloads')) + 1}.mp4"
         with open(filename, 'wb') as f:
             for chunk in response.iter_content(chunk_size=1024*1024):
@@ -64,53 +57,56 @@ async def download_video(url: str) -> str:
         return None
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ইউজারের মেসেজ হ্যান্ডলিং"""
+    """ইউজারের মেসেজ হ্যান্ডল করে"""
     text = update.message.text
-    print(f"User sent: {text}")  # ডিবাগিং
+    print(f"User sent: {text}")
     
-    # টেরাবক্স এবং টেরাফাইলশেয়ারের লিংক ডিটেক্ট করুন
+    # সমস্ত টেরাবক্স ডোমেইন সনাক্ত করুন (case-insensitive)
     video_urls = re.findall(
-        r'https?://(www\.)?(terabox\.com|terafileshare\.com)[^\s]+', 
-        text,
+        r'https?://(www\.)?(terabox\.com|terafileshare\.com|terabox\.app)[^\s]+', 
+        text, 
         re.IGNORECASE
     )
-    print(f"Found URLs: {video_urls}")  # ডিবাগিং
+    print(f"Found URLs: {video_urls}")
     
     if not video_urls:
-        await update.message.reply_text("❌ Invalid TeraBox/TeraFileshare Link!")
+        await update.message.reply_text("❌ Invalid TeraBox Link!")
         return
     
-    await update.message.reply_text("📥 Downloading... (10-30 seconds)")
+    # ডাউনলোডিং স্ট্যাটাস মেসেজ
+    status_msg = await update.message.reply_text("📥 Downloading... (10-30 seconds)")
     
     try:
-        # প্রথম লিংক নিন
-        video_url = video_urls[0][0] if video_urls[0][0] else video_urls[0][1]
+        # প্রথম ম্যাচ করা লিংক নিন
+        video_url = video_urls[0][1] if video_urls[0][0] else video_urls[0][1]
         video_file = await download_video(video_url)
         
         if not video_file:
-            raise Exception("Download Failed")
+            await status_msg.edit_text("😢 Failed to Download. Check Link or Try Later.")
+            return
         
-        # ভিডিও সেন্ড করুন
+        # ভিডিও রিপ্লাই হিসেবে পাঠান + স্ট্যাটাস মেসেজ ডিলিট করুন
         with open(video_file, 'rb') as video:
             await update.message.reply_video(
-                video, 
-                read_timeout=200, 
-                write_timeout=200,
-                caption="✅ Downloaded by @YourBotName"
+                video,
+                caption="⬇️ Downloaded by @YourBotName",
+                reply_to_message_id=update.message.message_id,  # মূল মেসেজে রিপ্লাই
+                read_timeout=200,
+                write_timeout=200
             )
+        await status_msg.delete()  # স্ট্যাটাস মেসেজ ডিলিট
         
-        # ফাইল ডিলিট করুন
         os.remove(video_file)
-        await update.message.reply_text("✅ Video Sent Successfully!")
+        
     except Exception as e:
         print(f"Error: {e}")
-        await update.message.reply_text("😢 Failed to Download. Check Link or Try Later.")
+        await status_msg.edit_text("😢 Failed to Download. Check Link or Try Later.")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/start কমান্ড হ্যান্ডলার"""
     await update.message.reply_text(
-        "🌟 Welcome to Terabox Downloader Bot!\n"
-        "Send any Terabox/Terafileshare link to download."
+        "🌟 Welcome to TeraBox Downloader Bot!\n"
+        "Send any TeraBox/TeraFileshare link to download."
     )
 
 def main():
