@@ -76,7 +76,7 @@ def main():
     # Create application with timezone
     application = Application.builder() \
         .token(TOKEN) \
-        .timezone(pytz.timezone("Asia/Dhaka")) \  # Set your timezone
+        .timezone(pytz.timezone("Asia/Dhaka")) \
         .build()
     
     # Add handlers
