@@ -10,7 +10,7 @@ from telegram.ext import (
     filters
 )
 from dotenv import load_dotenv
-import pytz  # Required for timezone
+import pytz
 
 # Load environment variables
 load_dotenv()
@@ -73,19 +73,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Send any Terabox video link to download.""")
 
 def main():
-    # Application বিল্ড করুন
-    application = (
-        Application.builder()
-        .token(TOKEN)
-        .timezone(pytz.timezone("Asia/Dhaka"))  # বাংলাদেশ টাইমজোন
-        .build()
-    )
+    # Create application without timezone (fix the error)
+    application = Application.builder().token(TOKEN).build()
     
-    # হ্যান্ডলার যোগ করুন
+    # Set timezone for job queue (যদি Cron Job ব্যবহার করেন)
+    application.job_queue.scheduler.configure(timezone=pytz.timezone("Asia/Dhaka"))
+    
+    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # বট চালু করুন
+    # Start bot
     application.run_polling()
 
 if __name__ == "__main__":
