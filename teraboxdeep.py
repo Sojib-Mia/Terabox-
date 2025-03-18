@@ -73,17 +73,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Send any Terabox video link to download.""")
 
 def main():
-    # Create application with timezone
-    application = Application.builder() \
-        .token(TOKEN) \
-        .timezone(pytz.timezone("Asia/Dhaka")) \
+    # Application বিল্ড করুন
+    application = (
+        Application.builder()
+        .token(TOKEN)
+        .timezone(pytz.timezone("Asia/Dhaka"))  # বাংলাদেশ টাইমজোন
         .build()
+    )
     
-    # Add handlers
+    # হ্যান্ডলার যোগ করুন
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # Start bot
+    # বট চালু করুন
     application.run_polling()
 
 if __name__ == "__main__":
