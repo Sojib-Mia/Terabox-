@@ -1,67 +1,85 @@
 import os
+import re
 import requests
 from telegram import Bot, Update
-from telegram.ext import Updater, MessageHandler, Filters, CallbackContext
+from telegram.ext import (
+    Application,
+    MessageHandler,
+    CommandHandler,
+    ContextTypes,
+    filters
+)
 from dotenv import load_dotenv
-import re
 
 # .env ফাইল থেকে টোকেন লোড করুন
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
-# টেরাবক্সের জন্য প্রয়োজনীয় হেডার
+# ডাউনলোড ফোল্ডার তৈরি করুন
+if not os.path.exists("downloads"):
+    os.makedirs("downloads")
+
+# টেরাবক্সের জন্য হেডার
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     "Referer": "https://www.terabox.com/"
 }
 
-def download_video(url):
+async def download_video(url: str) -> str:
     try:
-        response = requests.get(url, headers=HEADERS, stream=True, timeout=10)
+        response = requests.get(url, headers=HEADERS, stream=True, timeout=30)
         response.raise_for_status()
         
-        filename = f"video_{len(os.listdir('downloads')) + 1}.mp4"
-        with open(f"downloads/{filename}", 'wb') as file:
+        filename = f"downloads/video_{len(os.listdir('downloads')) + 1}.mp4"
+        with open(filename, 'wb') as f:
             for chunk in response.iter_content(chunk_size=1024*1024):
                 if chunk:
-                    file.write(chunk)
+                    f.write(chunk)
         return filename
     except Exception as e:
         print(f"Download Error: {e}")
         return None
 
-def handle_message(update: Update, context: CallbackContext):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     video_urls = re.findall(r'https?://terabox[^\s]+', text)
     
     if not video_urls:
-        update.message.reply_text("❌ Invalid TeraBox Link!")
+        await update.message.reply_text("❌ Invalid TeraBox Link!")
         return
     
-    update.message.reply_text("📥 Downloading... (10-30 seconds)")
+    await update.message.reply_text("📥 Downloading... (10-30 seconds)")
     
     try:
-        video_file = download_video(video_urls[0])
+        video_file = await download_video(video_urls[0])
         if not video_file:
             raise Exception("Download Failed")
         
-        with open(f"downloads/{video_file}", 'rb') as video:
-            update.message.reply_video(video, timeout=100)
+        # ভিডিও সেন্ড করুন
+        with open(video_file, 'rb') as video:
+            await update.message.reply_video(video, read_timeout=100, write_timeout=100)
         
-        # ফাইল ডিলিট করুন (ঐচ্ছিক)
-        os.remove(f"downloads/{video_file}")
-        update.message.reply_text("✅ Video Sent Successfully!")
+        # ফাইল ডিলিট করুন
+        os.remove(video_file)
+        await update.message.reply_text("✅ Video Sent Successfully!")
     except Exception as e:
-        update.message.reply_text("😢 Failed to Download. Check Link or Try Later.")
+        await update.message.reply_text("😢 Failed to Download. Check Link or Try Later.")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Hello! Send me a TeraBox link to download.")
 
 def main():
-    updater = Updater(TOKEN)
-    dp = updater.dispatcher
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-    updater.start_polling()
-    updater.idle()
+    # বট অ্যাপ্লিকেশন তৈরি করুন
+    application = Application.builder().token(TOKEN).build()
+    
+    # মেসেজ হ্যান্ডলার
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # স্টার্ট কমান্ড
+    application.add_handler(CommandHandler("start", start))
+    
+    # বট চালু করুন
+    application.run_polling()
 
 if __name__ == "__main__":
-    if not os.path.exists("downloads"):
-        os.makedirs("downloads")
     main()
